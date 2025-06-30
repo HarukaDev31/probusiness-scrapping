@@ -27,7 +27,7 @@ class AlibabaOptimizedScraper:
         self.page_retry_count = 0
         self.max_page_retries = 3
     
-    def setup_driver(self, headless=True):
+    def setup_driver(self, headless=False):
         """Configuración segura del driver que no afecta otras instancias de Chrome"""
         import tempfile
         import os
