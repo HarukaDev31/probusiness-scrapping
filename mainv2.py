@@ -1309,7 +1309,7 @@ def send_products_to_api( api_url):
             if 'detailed_description_text' in product and product['detailed_description_text']:
                 try:
                     response = requests.post(api_url, json=product, headers=headers)
-                    if response.status_code == 201:
+                    if response.status_code == 200:
                         print(f"Producto enviado exitosamente: {product['description'][:50]}...")
                     else:
                         print(f"Error al enviar producto: {response.status_code} - {response.text}")
