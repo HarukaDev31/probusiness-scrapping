@@ -73,7 +73,8 @@ class AlibabaOptimizedScraper:
             user_agents = [
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
                 "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+                "Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
             ]
             chrome_options.add_argument(f"--user-agent={random.choice(user_agents)}")
             
@@ -1178,7 +1179,7 @@ def main():
                     if not details_success:
                         print(f"✗ No se pudieron obtener detalles después de {max_detail_retries} intentos")
                     
-                    # Pausa entre productos para evitar bloqueos
+                    # Pausa entre productos para evitamr bloqueos
                     time.sleep(random.uniform(2, 3))
             
             # FASE 3: Guardar solo productos con detalles completos
@@ -1231,6 +1232,8 @@ def main():
             if products_with_details:
                 print(f"Velocidad promedio: {len(products_with_details)/elapsed_time:.2f} productos/segundo")
             send_products_to_api("https://tiendaback.probusiness.pe/api/products")
+            mark_products_completed_batch([p['original_product_id'] for p in products_with_details])
+            print("Productos enviados a la API")
             return  # Salir del bucle de reintentos
             
         except KeyboardInterrupt:
@@ -1306,7 +1309,7 @@ def send_products_to_api( api_url):
             if 'detailed_description_text' in product and product['detailed_description_text']:
                 try:
                     response = requests.post(api_url, json=product, headers=headers)
-                    if response.status_code == 200:
+                    if response.status_code == 201:
                         print(f"Producto enviado exitosamente: {product['description'][:50]}...")
                     else:
                         print(f"Error al enviar producto: {response.status_code} - {response.text}")
