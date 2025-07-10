@@ -80,6 +80,9 @@ def save_to_csv(products: List[Dict], filename: str = OUTPUT_FILES['csv']):
             # Agregar category_id
             row["category_id"] = product.get("category_id", "N/A")
             
+            # Agregar URL del detalle de Alibaba
+            row["alibaba_detail_url"] = product.get("alibaba_detail_url", "N/A")
+            
             # Manejar información del proveedor
             if "supplier_name" in product:
                 row["supplier_name"] = product["supplier_name"]
@@ -122,7 +125,7 @@ def send_single_product_to_api(product: Dict) -> bool:
     if 'detailed_description_text' in product and product['detailed_description_text']:
         try:
             response = requests.post(API_URLS['send_products'], json=product, headers=headers)
-            if response.status_code == 200:
+            if response.status_code == 200 or response.status_code==201:
                 print(f"✓ Producto enviado exitosamente: {product['description'][:50]}...")
                 notification_handler.send_success_notification(
                     f"Producto enviado: {product['description'][:30]}..."
@@ -168,7 +171,7 @@ def send_products_to_api(api_url: str, products: List[Dict]):
         if 'detailed_description_text' in product and product['detailed_description_text']:
             try:
                 response = requests.post(api_url, json=product, headers=headers)
-                if response.status_code == 200:
+                if response.status_code == 200 or response.status_code==201:
                     print(f"Producto enviado exitosamente: {product['description'][:50]}...")
                 else:
                     print(f"Error al enviar producto: {response.status_code} - {response.text}")

@@ -162,27 +162,37 @@ class ProductExtractor:
         }
         
         // Atributos
-        const attrContainer = document.querySelector('div[data-testid="module-attribute"]');
+        let attrContainer = document.querySelector('div[data-testid="module-attribute"]');
+        if (!attrContainer) {
+            attrContainer = document.querySelector('div[data-module-name="module_attribute"]');
+        }
+        
         details.attributes = {};
         if (attrContainer) {
             // Buscar TODAS las filas de atributos en cualquier nivel del contenedor
             const allAttrRows = attrContainer.querySelectorAll('div.id-grid');
             
             allAttrRows.forEach(row => {
-                // Buscar todos los divs dentro de la fila que tengan las clases específicas
-                const keyDiv = row.querySelector('div[class*="id-bg-[#f8f8f8]"]');
-                const valueDiv = row.querySelector('div[class*="id-font-medium"]');
+                // Verificar que esta fila no esté en la sección de embalaje
+                const isInPackagingSection = row.closest('div').querySelector('h3') && 
+                                           row.closest('div').querySelector('h3').textContent.includes('Embalaje y entrega');
                 
-                if (keyDiv && valueDiv) {
-                    // Extraer texto de los elementos internos o del div mismo
-                    const keyElement = keyDiv.querySelector('.id-line-clamp-2') || keyDiv;
-                    const valueElement = valueDiv.querySelector('.id-line-clamp-2') || valueDiv;
+                if (!isInPackagingSection) {
+                    // Buscar todos los divs dentro de la fila que tengan las clases específicas
+                    const keyDiv = row.querySelector('div[class*="id-bg-[#f8f8f8]"]');
+                    const valueDiv = row.querySelector('div[class*="id-font-medium"]');
                     
-                    const keyText = keyElement.textContent.trim();
-                    const valueText = valueElement.textContent.trim();
-                    
-                    if (keyText && valueText) {
-                        details.attributes[keyText] = valueText;
+                    if (keyDiv && valueDiv) {
+                        // Extraer texto de los elementos internos o del div mismo
+                        const keyElement = keyDiv.querySelector('.id-line-clamp-2') || keyDiv;
+                        const valueElement = valueDiv.querySelector('.id-line-clamp-2') || valueDiv;
+                        
+                        const keyText = keyElement.textContent.trim();
+                        const valueText = valueElement.textContent.trim();
+                        
+                        if (keyText && valueText) {
+                            details.attributes[keyText] = valueText;
+                        }
                     }
                 }
             });
@@ -206,27 +216,58 @@ class ProductExtractor:
         
         // Información de embalaje (separar de atributos generales)
         details.packaging_info = {};
-        const packagingSection = attrContainer ? attrContainer.querySelector('h3:contains("Embalaje y entrega")') : null;
-        if (packagingSection) {
-            const packagingContainer = packagingSection.closest('div').querySelector('.id-grid');
-            if (packagingContainer) {
-                const packagingRows = packagingContainer.querySelectorAll('div.id-grid');
-                packagingRows.forEach(row => {
-                    const keyDiv = row.querySelector('div[class*="id-bg-[#f8f8f8]"]');
-                    const valueDiv = row.querySelector('div[class*="id-font-medium"]');
-                    
-                    if (keyDiv && valueDiv) {
-                        const keyElement = keyDiv.querySelector('.id-line-clamp-2') || keyDiv;
-                        const valueElement = valueDiv.querySelector('.id-line-clamp-2') || valueDiv;
-                        
-                        const keyText = keyElement.textContent.trim();
-                        const valueText = valueElement.textContent.trim();
-                        
-                        if (keyText && valueText) {
-                            details.packaging_info[keyText] = valueText;
-                        }
+        if (attrContainer) {
+            // Buscar el h3 que contenga "Embalaje y entrega"
+            const h3Elements = attrContainer.querySelectorAll('h3');
+            let packagingSection = null;
+            for (const h3 of h3Elements) {
+                if (h3.textContent.includes('Embalaje y entrega')) {
+                    packagingSection = h3;
+                    break;
+                }
+            }
+            
+            // Si no se encuentra en h3, buscar en cualquier elemento que contenga el texto
+            if (!packagingSection) {
+                const allElements = attrContainer.querySelectorAll('*');
+                for (const element of allElements) {
+                    if (element.textContent && element.textContent.includes('Embalaje y entrega')) {
+                        packagingSection = element;
+                        break;
                     }
-                });
+                }
+            }
+            
+            if (packagingSection) {
+                // Buscar el contenedor de embalaje - puede estar en diferentes estructuras
+                let packagingContainer = packagingSection.closest('div').querySelector('.id-grid');
+                if (!packagingContainer) {
+                    // Buscar en la estructura alternativa
+                    const nextDiv = packagingSection.closest('div').nextElementSibling;
+                    if (nextDiv) {
+                        packagingContainer = nextDiv.querySelector('.id-grid');
+                    }
+                }
+                
+                if (packagingContainer) {
+                    const packagingRows = packagingContainer.querySelectorAll('div.id-grid');
+                    packagingRows.forEach(row => {
+                        const keyDiv = row.querySelector('div[class*="id-bg-[#f8f8f8]"]');
+                        const valueDiv = row.querySelector('div[class*="id-font-medium"]');
+                        
+                        if (keyDiv && valueDiv) {
+                            const keyElement = keyDiv.querySelector('.id-line-clamp-2') || keyDiv;
+                            const valueElement = valueDiv.querySelector('.id-line-clamp-2') || valueDiv;
+                            
+                            const keyText = keyElement.textContent.trim();
+                            const valueText = valueElement.textContent.trim();
+                            
+                            if (keyText && valueText) {
+                                details.packaging_info[keyText] = valueText;
+                            }
+                        }
+                    });
+                }
             }
         }
         
@@ -257,6 +298,9 @@ class ProductExtractor:
                 }
             }
         }
+        
+        // URL del detalle de Alibaba
+        details.alibaba_detail_url = window.location.href;
         
         // Descripción
         const descLayout = document.getElementById('description-layout') || 
@@ -301,12 +345,47 @@ class ProductExtractor:
             }
         });
         
+        // Extraer videos del carrusel principal
+        const carouselVideos = document.querySelectorAll([
+            'div[data-module="MainImage"] video',
+            'div.main-index video',
+            '.detail-video-container video',
+            'div[data-submodule="ProductImageMain"] video'
+        ].join(','));
+        
+        carouselVideos.forEach(video => {
+            const videoSrc = video.src || video.getAttribute('src');
+            if (videoSrc && !videoSrc.includes('data:') && !details.images.includes(videoSrc)) {
+                details.images.push(videoSrc);
+            }
+        });
+        
+        // Extraer videos de elementos source dentro de video
+        const videoSources = document.querySelectorAll([
+            'div[data-module="MainImage"] video source',
+            'div.main-index video source',
+            '.detail-video-container video source',
+            'div[data-submodule="ProductImageMain"] video source'
+        ].join(','));
+        
+        videoSources.forEach(source => {
+            const sourceSrc = source.src || source.getAttribute('data-src');
+            if (sourceSrc && !sourceSrc.includes('data:') && !details.images.includes(sourceSrc)) {
+                details.images.push(sourceSrc);
+            }
+        });
+        
         details.images = [...new Set(details.images)].map(url => {
             if (url.startsWith('//')) {
                 return 'https:' + url;
             }
             return url;
         });
+        
+        // LIMITAR A MÁXIMO 15 IMÁGENES
+        if (details.images.length > 15) {
+            details.images = details.images.slice(0, 15);
+        }
         
         return details;
         """
@@ -385,6 +464,9 @@ class ProductExtractor:
                     time.sleep(1)
                     
                     return iframe_content
+                else:
+                    print("Iframe encontrado pero sin src válido")
+                    return {'html': '', 'text': '', 'images': [], 'reconstructed_html': ''}
             else:
                 print("No se encontró iframe de descripción")
                 return {'html': '', 'text': '', 'images': [], 'reconstructed_html': ''}
@@ -398,28 +480,90 @@ class ProductExtractor:
         iframe_content_js = """
         const content = {};
         
-        content.html = document.body ? document.body.innerHTML : '';
-        content.text = document.body ? document.body.innerText : '';
+        // Crear una copia del body para trabajar sin modificar el original
+        const bodyClone = document.body.cloneNode(true);
+        
+        // Remover divs específicos que no queremos incluir
+        const divsToRemove = [
+            'div.detailProductNavigation',
+            'div.detailTextContent'
+        ];
+        
+        divsToRemove.forEach(selector => {
+            const element = bodyClone.querySelector(selector);
+            if (element) {
+                element.remove();
+            }
+        });
+        
+        // Remover elementos module-title específicos que no queremos
+        const moduleTitlesToRemove = [
+            'detailSellerRecommend'
+        ];
+        
+        moduleTitlesToRemove.forEach(moduleTitle => {
+            const elements = bodyClone.querySelectorAll(`div[module-title="${moduleTitle}"]`);
+            elements.forEach(element => {
+                element.remove();
+            });
+        });
+        
+        content.html = bodyClone.innerHTML;
+        content.text = bodyClone.innerText;
         
         content.images = [];
-        const imgs = document.querySelectorAll('img');
+        
+        // Extraer imágenes
+        const imgs = bodyClone.querySelectorAll('img');
         imgs.forEach(img => {
             const src = img.src || img.getAttribute('data-src');
             if (src && !src.includes('data:') && !src.includes('.gif')) {
                 content.images.push(src.startsWith('//') ? 'https:' + src : src);
             }
         });
+        
+        // Extraer videos
+        const videos = bodyClone.querySelectorAll('video');
+        videos.forEach(video => {
+            const src = video.src || video.getAttribute('data-src');
+            if (src && !src.includes('data:')) {
+                content.images.push(src.startsWith('//') ? 'https:' + src : src);
+            }
+        });
+        
+        // Extraer videos de elementos iframe (videos embebidos)
+        const videoIframes = bodyClone.querySelectorAll('iframe[src*="video"], iframe[src*="youtube"], iframe[src*="vimeo"]');
+        videoIframes.forEach(iframe => {
+            const src = iframe.src;
+            if (src && !src.includes('data:')) {
+                content.images.push(src.startsWith('//') ? 'https:' + src : src);
+            }
+        });
+        
+        // Extraer videos de elementos source dentro de video
+        const videoSources = bodyClone.querySelectorAll('video source');
+        videoSources.forEach(source => {
+            const src = source.src || source.getAttribute('data-src');
+            if (src && !src.includes('data:')) {
+                content.images.push(src.startsWith('//') ? 'https:' + src : src);
+            }
+        });
+        
+        // LIMITAR A MÁXIMO 15 IMÁGENES
+        if (content.images.length > 15) {
+            content.images = content.images.slice(0, 15);
+        }
 
         // GENERAR HTML RECONSTRUIDO
         content.reconstructed_html = '';
 
-        const tables = document.querySelectorAll('table');
-        const sections = document.querySelectorAll('.magic-0');
+        const tables = bodyClone.querySelectorAll('table');
+        const sections = bodyClone.querySelectorAll('.magic-0');
 
         let reconstructedHTML = '';
         reconstructedHTML += '<body class="font-sans mx-5">';
 
-        const mainTitle = document.querySelector('.magic-9');
+        const mainTitle = bodyClone.querySelector('.magic-9');
         if (mainTitle) {
             reconstructedHTML += '<h1 class="text-3xl font-bold my-6">' + mainTitle.textContent.trim() + '</h1>';
         }
@@ -431,12 +575,33 @@ class ProductExtractor:
             let nextElement = section.closest('.J_module')?.nextElementSibling;
             
             while (nextElement && !nextElement.querySelector('.magic-0')) {
+                // Procesar imágenes
                 const images = nextElement.querySelectorAll('img');
                 images.forEach(img => {
                     const src = img.src || img.getAttribute('data-src');
                     if (src && !src.includes('data:')) {
                         const fullSrc = src.startsWith('//') ? 'https:' + src : src;
                         reconstructedHTML += '<img class="product-image w-full my-5" src="' + fullSrc + '" alt="Product Image">';
+                    }
+                });
+                
+                // Procesar videos
+                const videos = nextElement.querySelectorAll('video');
+                videos.forEach(video => {
+                    const src = video.src || video.getAttribute('data-src');
+                    if (src && !src.includes('data:')) {
+                        const fullSrc = src.startsWith('//') ? 'https:' + src : src;
+                        reconstructedHTML += '<video class="product-video w-full my-5" controls><source src="' + fullSrc + '" type="video/mp4">Tu navegador no soporta el elemento video.</video>';
+                    }
+                });
+                
+                // Procesar videos embebidos
+                const videoIframes = nextElement.querySelectorAll('iframe[src*="video"], iframe[src*="youtube"], iframe[src*="vimeo"]');
+                videoIframes.forEach(iframe => {
+                    const src = iframe.src;
+                    if (src && !src.includes('data:')) {
+                        const fullSrc = src.startsWith('//') ? 'https:' + src : src;
+                        reconstructedHTML += '<iframe class="product-video w-full my-5" src="' + fullSrc + '" frameborder="0" allowfullscreen></iframe>';
                     }
                 });
                 
@@ -483,16 +648,47 @@ class ProductExtractor:
             });
         }
 
-        const allImages = document.querySelectorAll('img');
-        if (allImages.length > 0) {
-            reconstructedHTML += '<div class="section my-8"><h2 class="text-2xl font-semibold border-b-2 border-gray-800 pb-3 mb-4">Imágenes del Producto</h2>';
-            allImages.forEach(img => {
-                const src = img.src || img.getAttribute('data-src');
-                if (src && !src.includes('data:') && !src.includes('.gif')) {
-                    const fullSrc = src.startsWith('//') ? 'https:' + src : src;
-                    reconstructedHTML += '<img class="product-image w-full my-5" src="' + fullSrc + '" alt="Product Image">';
+        const allImages = bodyClone.querySelectorAll('img');
+        const allVideos = bodyClone.querySelectorAll('video');
+        const allVideoIframes = bodyClone.querySelectorAll('iframe[src*="video"], iframe[src*="youtube"], iframe[src*="vimeo"]');
+        
+        // Crear arrays para limitar a máximo 15 elementos
+        let limitedImages = Array.from(allImages).slice(0, 15);
+        let limitedVideos = Array.from(allVideos).slice(0, 15);
+        let limitedVideoIframes = Array.from(allVideoIframes).slice(0, 15);
+        
+        // Combinar todos los elementos multimedia y limitar a 15 total
+        let allMediaElements = [...limitedImages, ...limitedVideos, ...limitedVideoIframes];
+        if (allMediaElements.length > 15) {
+            allMediaElements = allMediaElements.slice(0, 15);
+        }
+        
+        if (allMediaElements.length > 0) {
+            reconstructedHTML += '<div class="section my-8"><h2 class="text-2xl font-semibold border-b-2 border-gray-800 pb-3 mb-4">Imágenes y Videos del Producto</h2>';
+            
+            // Agregar elementos multimedia limitados
+            allMediaElements.forEach(element => {
+                if (element.tagName === 'IMG') {
+                    const src = element.src || element.getAttribute('data-src');
+                    if (src && !src.includes('data:') && !src.includes('.gif')) {
+                        const fullSrc = src.startsWith('//') ? 'https:' + src : src;
+                        reconstructedHTML += '<img class="product-image w-full my-5" src="' + fullSrc + '" alt="Product Image">';
+                    }
+                } else if (element.tagName === 'VIDEO') {
+                    const src = element.src || element.getAttribute('data-src');
+                    if (src && !src.includes('data:')) {
+                        const fullSrc = src.startsWith('//') ? 'https:' + src : src;
+                        reconstructedHTML += '<video class="product-video w-full my-5" controls><source src="' + fullSrc + '" type="video/mp4">Tu navegador no soporta el elemento video.</video>';
+                    }
+                } else if (element.tagName === 'IFRAME') {
+                    const src = element.src;
+                    if (src && !src.includes('data:')) {
+                        const fullSrc = src.startsWith('//') ? 'https:' + src : src;
+                        reconstructedHTML += '<iframe class="product-video w-full my-5" src="' + fullSrc + '" frameborder="0" allowfullscreen></iframe>';
+                    }
                 }
             });
+            
             reconstructedHTML += '</div>';
         }
 
@@ -505,7 +701,7 @@ class ProductExtractor:
         return self.driver.execute_script(iframe_content_js)
     
     def _extract_images_selenium(self) -> List[str]:
-        """Método de respaldo para extraer imágenes usando Selenium"""
+        """Método de respaldo para extraer imágenes y videos usando Selenium"""
         images = []
         
         try:
@@ -514,26 +710,66 @@ class ProductExtractor:
                 'div[data-submodule="ProductImageThumbsList"] div[role="group"]'
             )
             
-            for i, thumb in enumerate(thumbnails[:10]):
+            for i, thumb in enumerate(thumbnails[:15]):  # Cambiar de 10 a 15
                 try:
                     self.driver.execute_script("arguments[0].click();", thumb)
                     time.sleep(0.5)
                     
-                    main_img = self.driver.find_element(
-                        By.CSS_SELECTOR, 
-                        'div[data-submodule="ProductImageMain"] img[src*="alicdn.com"]:not([src*=".gif"])'
-                    )
+                    # Intentar extraer imagen principal
+                    try:
+                        main_img = self.driver.find_element(
+                            By.CSS_SELECTOR, 
+                            'div[data-submodule="ProductImageMain"] img[src*="alicdn.com"]:not([src*=".gif"])'
+                        )
+                        
+                        img_src = main_img.get_attribute('src')
+                        if img_src and img_src not in images:
+                            img_src = re.sub(r'_\d+x\d+.*\.jpg', '_720x720q50.jpg', img_src)
+                            if img_src.startswith('//'):
+                                img_src = 'https:' + img_src
+                            images.append(img_src)
+                    except:
+                        pass
                     
-                    img_src = main_img.get_attribute('src')
-                    if img_src and img_src not in images:
-                        img_src = re.sub(r'_\d+x\d+.*\.jpg', '_720x720q50.jpg', img_src)
-                        if img_src.startswith('//'):
-                            img_src = 'https:' + img_src
-                        images.append(img_src)
+                    # Intentar extraer video principal
+                    try:
+                        main_video = self.driver.find_element(
+                            By.CSS_SELECTOR, 
+                            'div[data-submodule="ProductImageMain"] video'
+                        )
+                        
+                        video_src = main_video.get_attribute('src')
+                        if video_src and video_src not in images:
+                            if video_src.startswith('//'):
+                                video_src = 'https:' + video_src
+                            images.append(video_src)
+                    except:
+                        pass
+                    
+                    # Intentar extraer video de elementos source
+                    try:
+                        video_sources = self.driver.find_elements(
+                            By.CSS_SELECTOR, 
+                            'div[data-submodule="ProductImageMain"] video source'
+                        )
+                        
+                        for source in video_sources:
+                            source_src = source.get_attribute('src') or source.get_attribute('data-src')
+                            if source_src and source_src not in images:
+                                if source_src.startswith('//'):
+                                    source_src = 'https:' + source_src
+                                images.append(source_src)
+                    except:
+                        pass
+                        
                 except:
                     continue
             
         except Exception as e:
-            print(f"Error extrayendo imágenes con Selenium: {e}")
+            print(f"Error extrayendo imágenes y videos con Selenium: {e}")
+        
+        # LIMITAR A MÁXIMO 15 IMÁGENES/VIDEOS
+        if len(images) > 15:
+            images = images[:15]
         
         return images 

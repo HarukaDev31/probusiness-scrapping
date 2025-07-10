@@ -848,6 +848,10 @@ class AlibabaOptimizedScraper:
                                 details['images'] = []
                             details['images'].extend(iframe_content['images'])
                             details['images'] = list(set(details['images']))
+                            
+                            # LIMITAR A MÁXIMO 15 IMÁGENES DESPUÉS DE COMBINAR
+                            if len(details['images']) > 15:
+                                details['images'] = details['images'][:15]
                         
                         self.driver.get(current_url)
                         time.sleep(1)
@@ -919,7 +923,7 @@ class AlibabaOptimizedScraper:
                 'div[data-submodule="ProductImageThumbsList"] div[role="group"]'
             )
             
-            for i, thumb in enumerate(thumbnails[:10]):
+            for i, thumb in enumerate(thumbnails[:15]):
                 try:
                     self.driver.execute_script("arguments[0].click();", thumb)
                     time.sleep(0.5)

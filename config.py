@@ -35,12 +35,16 @@ RETRY_CONFIG = {
     "max_execution_retries": 3,
     "max_captcha_attempts": 5
 }
+ENV = "prod"
+if ENV == "prod":
+    BASE_URL = "https://tiendaback.probusiness.pe"
+else:
+    BASE_URL = "http://localhost:8000"
 
-# URLs de la API
 API_URLS = {
-    "get_products": "http://localhost:8000/api/getProductsToScrapping",
-    "mark_completed": "http://localhost:8000/api/markProductsCompleted",
-    "send_products": "http://localhost:8000/api/products"
+    "get_products": f"{BASE_URL}/api/getProductsToScrapping",
+    "mark_completed": f"{BASE_URL}/api/markProductsCompleted",
+    "send_products": f"{BASE_URL}/api/products"
 }
 
 # Selectores CSS para elementos
@@ -102,6 +106,6 @@ CSV_FIELDS = [
     "detailed_description_text", "detailed_description_html", 
     "iframe_content_text", "iframe_content_html", "iframe_content_images",
     "prices", "attributes", "packaging_info", "delivery_lead_times", "images", 
-    "original_product_id", "category_id", "supplier_name", "supplier_type", 
+    "original_product_id", "category_id", "alibaba_detail_url", "supplier_name", "supplier_type", 
     "supplier_years", "supplier_location", "supplier_performance"
 ] 
